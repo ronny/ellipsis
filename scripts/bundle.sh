@@ -4,8 +4,9 @@
 # au.ronny.EllipsisDev, so it sits next to the release app in /Applications
 # and in the Accessibility list, with its own settings. A release build is
 # build/Ellipsis.app with au.ronny.Ellipsis; sign.sh signs it for release.
-# The signature here uses the first Developer ID Application identity in the
-# keychain, else the first Apple Development one, else ad hoc. An ad hoc
+# The signature here uses the Developer ID Application identity in the
+# keychain (see developer-id.sh), else the first Apple Development one, else
+# ad hoc. An ad hoc
 # signature changes with every build, and macOS ties the Accessibility grant
 # to the signature, so an ad hoc debug build loses the permission at every
 # rebuild. Any certificate keeps it.
@@ -46,10 +47,8 @@ plutil -replace CFBundleIdentifier -string "$identifier" "$plist"
 [[ "$config" == "release" ]] || plutil -replace SUEnableAutomaticChecks -bool false "$plist"
 
 identity="${DEVELOPER_ID:-}"
-for kind in "Developer ID Application" "Apple Development"; do
-  [[ -z "$identity" ]] || break
-  identity="$(security find-identity -v -p codesigning |
-    sed -n "s/.*\"\($kind: [^\"]*\)\".*/\1/p" | head -1)"
-done
+[[ -n "$identity" ]] || identity="$("$root/scripts/developer-id.sh")"
+[[ -n "$identity" ]] || identity="$(security find-identity -v -p codesigning |
+  sed -n 's/.*"\(Apple Development: [^"]*\)".*/\1/p' | head -1)"
 codesign --force --sign "${identity:--}" --identifier "$identifier" "$app"
 echo "$app"

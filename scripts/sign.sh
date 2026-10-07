@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Sign build/Ellipsis.app with a Developer ID and the hardened runtime.
 # Usage: scripts/sign.sh [path/to/Ellipsis.app]
-# DEVELOPER_ID names the identity. Default: the first "Developer ID
-# Application" identity in the keychain.
+# DEVELOPER_ID names the identity. Default: the one "Developer ID
+# Application" identity in the keychain (see developer-id.sh).
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -10,8 +10,7 @@ app="${1:-$root/build/Ellipsis.app}"
 
 identity="${DEVELOPER_ID:-}"
 if [[ -z "$identity" ]]; then
-  identity="$(security find-identity -v -p codesigning |
-    sed -n 's/.*"\(Developer ID Application: [^"]*\)".*/\1/p' | head -1)"
+  identity="$("$root/scripts/developer-id.sh")"
 fi
 if [[ -z "$identity" ]]; then
   echo "No Developer ID Application identity in the keychain. Set DEVELOPER_ID." >&2
