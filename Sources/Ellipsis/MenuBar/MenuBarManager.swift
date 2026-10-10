@@ -24,6 +24,9 @@ final class MenuBarManager {
     private var clickThrough: Task<Void, Never>?
     private var barPlacement: Task<Void, Never>?
     private static let log = Logger(subsystem: "au.ronny.Ellipsis", category: "clickThrough")
+    private static let iconLog = Logger(subsystem: "au.ronny.Ellipsis", category: "icon")
+    private static let restrictionLog = Logger(subsystem: "au.ronny.Ellipsis", category: "restriction")
+    private var iconDebounce = ClickDebounce()
     private let openSettingsHandler: () -> Void
     private let icon = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private var launchObserver: Task<Void, Never>?
@@ -134,6 +137,9 @@ final class MenuBarManager {
                 hidden.remove(target)
             }
         }
+        Self.restrictionLog.notice(
+            "apply: shown \(self.sets.isHiddenSetShown), always-hidden shown \(self.sets.isAlwaysHiddenSetShown), hiding \(hidden.count) apps, click-through \(self.clickThroughTarget != nil)"
+        )
         if hidden.isEmpty {
             restriction.release()
         } else {
@@ -296,6 +302,7 @@ final class MenuBarManager {
         guard inZone != isPointerInClockZone else { return }
         isPointerInClockZone = inZone
         clockHoverRestore?.cancel()
+        Self.restrictionLog.notice("pointer \(inZone ? "entered" : "left") the clock zone")
         if inZone {
             restriction.release()
         } else {
@@ -314,6 +321,13 @@ final class MenuBarManager {
         // flags, so read the keyboard state directly.
         let flags = NSEvent.modifierFlags
         let isRightClick = NSApp.currentEvent?.type == .rightMouseUp
+        guard iconDebounce.accept(at: ProcessInfo.processInfo.systemUptime) else {
+            Self.iconLog.notice("dropped a duplicate icon action")
+            return
+        }
+        Self.iconLog.notice(
+            "icon clicked: right \(isRightClick), option \(flags.contains(.option)), control \(flags.contains(.control)), shown \(self.sets.isHiddenSetShown)"
+        )
         if isRightClick || flags.contains(.control) {
             showMenu()
         } else {
