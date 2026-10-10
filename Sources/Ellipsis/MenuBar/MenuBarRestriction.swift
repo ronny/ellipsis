@@ -1,4 +1,5 @@
 import AppKit
+import os
 
 enum MenuBarRestrictionError: LocalizedError {
     case frameworkNotLoaded(String)
@@ -18,6 +19,7 @@ enum MenuBarRestrictionError: LocalizedError {
 /// `MenuBarClientCore` framework. See `docs/spec.md`, "How it hides".
 @MainActor
 final class MenuBarRestriction {
+    private static let log = Logger(subsystem: "au.ronny.Ellipsis", category: "restriction")
     private static let frameworkPath =
         "/System/Library/PrivateFrameworks/MenuBarClientCore.framework/MenuBarClientCore"
 
@@ -75,9 +77,15 @@ final class MenuBarRestriction {
         let assertion = assertionClass.init()
         nonisolated(unsafe) let previous = self.assertion
         isActivating = true
+        let started = ContinuousClock.now
+        let log = Self.log
+        log.notice("activating: hiding \(hidden.count) apps, replacing \(previous != nil)")
         let completion: @convention(block) (Any?) -> Void = { [weak self] error in
+            let elapsed = ContinuousClock.now - started
             if let error {
-                NSLog("Ellipsis: restriction failed: %@", String(describing: error))
+                log.error("activation failed after \(elapsed, privacy: .public): \(String(describing: error), privacy: .public)")
+            } else {
+                log.notice("activated after \(elapsed, privacy: .public)")
             }
             _ = previous?.perform(NSSelectorFromString("invalidate"))
             Task { @MainActor in
@@ -100,6 +108,7 @@ final class MenuBarRestriction {
     }
 
     func release() {
+        Self.log.notice("releasing: active \(self.assertion != nil), activating \(self.isActivating)")
         _ = assertion?.perform(NSSelectorFromString("invalidate"))
         assertion = nil
         isActivating = false
