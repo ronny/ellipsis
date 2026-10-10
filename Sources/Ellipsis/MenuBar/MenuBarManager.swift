@@ -15,6 +15,7 @@ final class MenuBarManager {
     private let rehide: RehideMonitor
     private let updater: Updater
     private let permission: AccessibilityPermission
+    private let location: AppLocation
     private var floatingBar: FloatingBar?
     /// The app whose item a bar click is opening. While set, and while the
     /// set is shown, the restriction lets that item through: alone among
@@ -58,6 +59,7 @@ final class MenuBarManager {
         sets: HiddenSets,
         state: AppState,
         permission: AccessibilityPermission,
+        location: AppLocation,
         updater: Updater,
         openSettings: @escaping () -> Void
     ) {
@@ -65,6 +67,7 @@ final class MenuBarManager {
         self.sets = sets
         self.state = state
         self.permission = permission
+        self.location = location
         self.updater = updater
         self.openSettingsHandler = openSettings
         self.rehide = RehideMonitor(state: state, sets: sets)
@@ -137,6 +140,7 @@ final class MenuBarManager {
                 hidden.remove(target)
             }
         }
+        hidden = location.identifiersToHide(hidden, own: Bundle.main.bundleIdentifier)
         Self.restrictionLog.notice(
             "apply: shown \(self.sets.isHiddenSetShown), always-hidden shown \(self.sets.isAlwaysHiddenSetShown), hiding \(hidden.count) apps, click-through \(self.clickThroughTarget != nil)"
         )
@@ -195,7 +199,7 @@ final class MenuBarManager {
     // MARK: The floating bar
 
     private func updateFloatingBar(inBar: Bool) {
-        guard inBar, sets.isHiddenSetShown, clickThroughTarget == nil else {
+        guard inBar, sets.isHiddenSetShown, clickThroughTarget == nil, location.canHide else {
             floatingBar?.hide()
             return
         }
@@ -330,6 +334,8 @@ final class MenuBarManager {
         )
         if isRightClick || flags.contains(.control) {
             showMenu()
+        } else if !location.canHide {
+            AppMover.offerMove(location)
         } else {
             toggle(includingAlwaysHidden: flags.contains(.option))
         }
