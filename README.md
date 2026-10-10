@@ -5,13 +5,13 @@ Ellipsis hides selected menu bar items on macOS 27. Click its icon to show them.
 ## Requirements
 
 - macOS 27.0 or later.
-- Ellipsis must run from `/Applications`. `MenuBarAgent` matches the allow-list against apps in that folder only. A copy in any other folder hides its own icon.
+- Ellipsis must run from `/Applications`. `MenuBarAgent` matches the allow-list against apps in that folder only. A copy in any other folder, or a copy that macOS translocates, hides nothing and offers to move itself to `/Applications`.
 - No permission is necessary. Ellipsis offers the Accessibility permission once, as an option. See Limits.
 
 ## Install a release
 
 1. Download `Ellipsis-X.Y.Z.zip` from [GitHub Releases](../../releases).
-2. Open the zip. Move `Ellipsis.app` to `/Applications`.
+2. Open the zip. Drag `Ellipsis.app` to `/Applications` in the Finder. A move with `mv` keeps the quarantine, and macOS then runs the app from a temporary folder (App Translocation).
 3. Open Ellipsis. The `…` icon appears in the menu bar.
 4. Right-click the icon. Select "Settings…". Put apps in the hidden set. Or, with the Accessibility permission, turn on "Hide apps left of the Ellipsis icon" and Cmd-drag items to the left of the icon.
 
