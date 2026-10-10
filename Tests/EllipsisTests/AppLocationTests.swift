@@ -1,37 +1,56 @@
+import Foundation
 import Testing
 @testable import Ellipsis
 
+/// `canHide` compares the bundle's folder with `/Applications` on disk, so
+/// these tests read the real file system.
 struct AppLocationTests {
     private let own = "au.ronny.Ellipsis"
 
+    private func canHide(_ path: String) -> Bool {
+        AppLocation(bundlePath: path, originalPath: nil).canHide
+    }
+
     @Test func inApplicationsCanHide() {
-        #expect(AppLocation(bundlePath: "/Applications/Ellipsis.app", originalPath: nil).canHide)
+        #expect(canHide("/Applications/Ellipsis.app"))
     }
 
     @Test func aTrailingSlashStillCounts() {
-        #expect(AppLocation(bundlePath: "/Applications/Ellipsis.app/", originalPath: nil).canHide)
+        #expect(canHide("/Applications/Ellipsis.app/"))
+    }
+
+    @Test func theDataVolumePathOfApplicationsCounts() {
+        #expect(canHide("/System/Volumes/Data/Applications/Ellipsis.app"))
+    }
+
+    @Test func applicationsInTheWrongCaseCounts() {
+        #expect(canHide("/applications/Ellipsis.app"))
     }
 
     @Test func aBuildFolderCannotHide() {
-        #expect(!AppLocation(bundlePath: "/Users/me/ellipsis/build/Ellipsis.app", originalPath: nil).canHide)
+        #expect(!canHide("/Users/me/ellipsis/build/Ellipsis.app"))
     }
 
     @Test func downloadsCannotHide() {
-        #expect(!AppLocation(bundlePath: "/Users/me/Downloads/Ellipsis.app", originalPath: nil).canHide)
+        #expect(!canHide("/Users/me/Downloads/Ellipsis.app"))
+    }
+
+    @Test func aDiskImageCannotHide() {
+        #expect(!canHide("/Volumes/Ellipsis/Ellipsis.app"))
     }
 
     @Test func aSubfolderOfApplicationsCannotHide() {
         // Untested with MenuBarAgent, so it does not count.
-        #expect(!AppLocation(bundlePath: "/Applications/Utilities/Ellipsis.app", originalPath: nil).canHide)
+        #expect(!canHide("/Applications/Utilities/Ellipsis.app"))
     }
 
     @Test func userApplicationsCannotHide() {
-        #expect(!AppLocation(bundlePath: "/Users/me/Applications/Ellipsis.app", originalPath: nil).canHide)
+        #expect(!canHide(NSHomeDirectory() + "/Applications/Ellipsis.app"))
     }
 
     @Test func aPathThatOnlyLooksLikeApplicationsCannotHide() {
-        #expect(!AppLocation(bundlePath: "/Applications/../tmp/Ellipsis.app", originalPath: nil).canHide)
-        #expect(!AppLocation(bundlePath: "/ApplicationsX/Ellipsis.app", originalPath: nil).canHide)
+        #expect(!canHide("/Applications/../tmp/Ellipsis.app"))
+        #expect(!canHide("/ApplicationsX/Ellipsis.app"))
     }
 
     @Test func translocatedFromApplicationsCannotHide() {
@@ -58,30 +77,23 @@ struct AppLocationTests {
         #expect(location.identifiersToHide(["a", own], own: own) == ["a"])
     }
 
-    @Test func aMoveFromDownloadsCopiesToApplications() {
-        let location = AppLocation(bundlePath: "/Users/me/Downloads/Ellipsis.app", originalPath: nil)
-        #expect(location.source == "/Users/me/Downloads/Ellipsis.app")
-        #expect(location.destination == "/Applications/Ellipsis.app")
-        #expect(location.needsCopy)
+    @Test func withoutAnOwnIdentifierTheWantedSetHides() {
+        let location = AppLocation(bundlePath: "/Applications/Ellipsis.app", originalPath: nil)
+        #expect(location.identifiersToHide(["a", own], own: nil) == ["a", own])
     }
 
-    @Test func aMoveOfATranslocatedCopyStartsFromTheOriginal() {
+    @Test func theSourceOfAPlainCopyIsTheBundle() {
+        let location = AppLocation(bundlePath: "/Users/me/Downloads/Ellipsis.app", originalPath: nil)
+        #expect(location.source == "/Users/me/Downloads/Ellipsis.app")
+        #expect(location.appName == "Ellipsis")
+    }
+
+    @Test func theSourceOfATranslocatedCopyIsTheOriginal() {
         let location = AppLocation(
             bundlePath: "/private/var/folders/mb/x/T/AppTranslocation/E916/d/EllipsisDev.app",
             originalPath: "/Users/me/Downloads/EllipsisDev.app"
         )
         #expect(location.source == "/Users/me/Downloads/EllipsisDev.app")
-        #expect(location.destination == "/Applications/EllipsisDev.app")
         #expect(location.appName == "EllipsisDev")
-        #expect(location.needsCopy)
-    }
-
-    @Test func aTranslocatedAppAlreadyInApplicationsNeedsNoCopy() {
-        let location = AppLocation(
-            bundlePath: "/private/var/folders/mb/x/T/AppTranslocation/E916/d/Ellipsis.app",
-            originalPath: "/Applications/Ellipsis.app"
-        )
-        #expect(location.destination == "/Applications/Ellipsis.app")
-        #expect(!location.needsCopy)
     }
 }

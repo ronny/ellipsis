@@ -149,12 +149,12 @@ final class MenuBarManager {
         } else {
             restriction.apply(hiddenBundleIdentifiers: hidden)
         }
-        icon.button?.image = sets.isHiddenSetShown ? Self.shownImage : Self.hiddenImage
+        icon.button?.image = sets.isHiddenSetShown && location.canHide ? Self.shownImage : Self.hiddenImage
         updateFloatingBar(inBar: inBar)
 
         // Arm once per show, not on every reapply, so the timeout is not reset
         // by unrelated changes such as the clock hover.
-        if sets.isHiddenSetShown {
+        if sets.isHiddenSetShown, location.canHide {
             if !rehide.isArmed {
                 rehide.arm()
             }
@@ -335,7 +335,7 @@ final class MenuBarManager {
         if isRightClick || flags.contains(.control) {
             showMenu()
         } else if !location.canHide {
-            AppMover.offerMove(location)
+            AppMover.offerMove()
         } else {
             toggle(includingAlwaysHidden: flags.contains(.option))
         }
@@ -353,7 +353,7 @@ final class MenuBarManager {
         )
         alwaysHidden.target = self
         alwaysHidden.state = sets.isAlwaysHiddenSetShown ? .on : .off
-        alwaysHidden.isEnabled = state.isAlwaysHiddenEnabled
+        alwaysHidden.isEnabled = state.isAlwaysHiddenEnabled && location.canHide
         menu.addItem(alwaysHidden)
 
         menu.addItem(.separator())

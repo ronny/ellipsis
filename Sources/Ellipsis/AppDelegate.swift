@@ -37,7 +37,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             // After the icon is in the menu bar.
             DispatchQueue.main.async {
-                AppMover.offerMove(location)
+                AppMover.offerMove()
             }
         }
         clockZone = ClockZone(state: state, permission: permission)

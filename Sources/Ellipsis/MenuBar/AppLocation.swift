@@ -16,9 +16,13 @@ struct AppLocation: Equatable {
 
     /// Whether `MenuBarAgent` can allow-list Ellipsis, so a restriction
     /// leaves its icon in the menu bar. Only the top level of
-    /// `/Applications` is tested; anything else counts as not.
+    /// `/Applications` is tested; anything else counts as not. The folder
+    /// is compared on disk, so `/System/Volumes/Data/Applications` and
+    /// `/applications` count too.
     var canHide: Bool {
-        !isTranslocated && Self.isInApplications(bundlePath)
+        guard !isTranslocated else { return false }
+        let folder = URL(fileURLWithPath: bundlePath).standardizedFileURL.deletingLastPathComponent()
+        return Self.isSameItem(folder, URL(fileURLWithPath: "/Applications"))
     }
 
     /// The apps a restriction may hide. Nothing while the icon would hide
@@ -29,29 +33,22 @@ struct AppLocation: Equatable {
         return wanted.subtracting([own])
     }
 
-    // MARK: Moving to /Applications
+    /// The bundle a move starts from: the original, not the translocated copy.
+    var source: String { ((originalPath ?? bundlePath) as NSString).standardizingPath }
 
     /// The bundle's file name without `.app`, the name the user sees in the Finder.
     var appName: String {
         ((source as NSString).lastPathComponent as NSString).deletingPathExtension
     }
 
-    /// The bundle a move starts from: the original, not the translocated copy.
-    var source: String { Self.standardized(originalPath ?? bundlePath) }
-
-    var destination: String {
-        "/Applications/" + (source as NSString).lastPathComponent
-    }
-
-    /// False when the original already sits at the destination, and only
-    /// its quarantine keeps it translocated.
-    var needsCopy: Bool { source != destination }
-
-    private static func isInApplications(_ path: String) -> Bool {
-        (standardized(path) as NSString).deletingLastPathComponent == "/Applications"
-    }
-
-    private static func standardized(_ path: String) -> String {
-        (path as NSString).standardizingPath
+    /// Whether two URLs name the same file or folder on disk, whatever the
+    /// spelling. False when either does not exist.
+    static func isSameItem(_ a: URL, _ b: URL) -> Bool {
+        let key: Set<URLResourceKey> = [.fileResourceIdentifierKey]
+        guard
+            let first = try? a.resourceValues(forKeys: key).fileResourceIdentifier,
+            let second = try? b.resourceValues(forKeys: key).fileResourceIdentifier
+        else { return false }
+        return first.isEqual(second)
     }
 }
