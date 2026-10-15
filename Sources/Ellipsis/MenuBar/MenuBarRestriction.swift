@@ -34,6 +34,7 @@ final class MenuBarRestriction {
     /// Callers waiting for the newest assertion to report back.
     private var activationWaiters: [CheckedContinuation<Void, Never>] = []
     private var isActivating = false
+    private var allowList = AllowList()
 
     var isActive: Bool { assertion != nil }
 
@@ -60,19 +61,22 @@ final class MenuBarRestriction {
 
     /// Hides the given apps and shows every other running app and every system
     /// item. Replaces any assertion held before. The allow-list is a snapshot of
-    /// the running apps, so call this again when an app launches.
+    /// the running apps, so call this again when an app launches. A call that
+    /// would change nothing does nothing.
     ///
     /// Activation is asynchronous. The newest assertion wins while several are
     /// alive, so the old one stays until the new one reports back. Invalidating
     /// it earlier drops every restriction for a moment and every item flashes.
     func apply(hiddenBundleIdentifiers hidden: Set<String>) {
         let running = NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier)
-        let allowed = Set(running).subtracting(hidden).sorted()
+        let allowed = Set(running).subtracting(hidden)
+        guard allowList.needsApply(hidden: hidden, allowed: allowed) else { return }
+        allowList.record(hidden: hidden, allowed: allowed)
 
         let configuration = (configurationClass as AnyObject)
             .perform(NSSelectorFromString("alloc"))?.takeUnretainedValue()
             .perform(NSSelectorFromString("initWithAllowedSystemItems:allowedBundleIdentifiers:"),
-                     with: Self.allSystemItems as NSArray, with: allowed as NSArray)?
+                     with: Self.allSystemItems as NSArray, with: allowed.sorted() as NSArray)?
             .takeUnretainedValue()
         let assertion = assertionClass.init()
         nonisolated(unsafe) let previous = self.assertion
@@ -82,6 +86,7 @@ final class MenuBarRestriction {
         log.notice("activating: hiding \(hidden.count) apps, replacing \(previous != nil)")
         let completion: @convention(block) (Any?) -> Void = { [weak self] error in
             let elapsed = ContinuousClock.now - started
+            let failed = error != nil
             if let error {
                 log.error("activation failed after \(elapsed, privacy: .public): \(String(describing: error), privacy: .public)")
             } else {
@@ -89,7 +94,7 @@ final class MenuBarRestriction {
             }
             _ = previous?.perform(NSSelectorFromString("invalidate"))
             Task { @MainActor in
-                self?.activated(assertion)
+                self?.activated(assertion, failed: failed)
             }
         }
         _ = assertion.perform(NSSelectorFromString("activateWithConfiguration:completionHandler:"),
@@ -97,9 +102,12 @@ final class MenuBarRestriction {
         self.assertion = assertion
     }
 
-    private func activated(_ assertion: NSObject) {
+    private func activated(_ assertion: NSObject, failed: Bool) {
         guard assertion === self.assertion else { return }  // an older one; the newest is still on its way
         isActivating = false
+        if failed {
+            allowList.clear()  // so the next call tries again
+        }
         let waiters = activationWaiters
         activationWaiters = []
         for waiter in waiters {
@@ -111,6 +119,7 @@ final class MenuBarRestriction {
         Self.log.notice("releasing: active \(self.assertion != nil), activating \(self.isActivating)")
         _ = assertion?.perform(NSSelectorFromString("invalidate"))
         assertion = nil
+        allowList.clear()
         isActivating = false
         let waiters = activationWaiters
         activationWaiters = []
